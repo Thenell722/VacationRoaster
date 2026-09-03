@@ -1,0 +1,107 @@
+// Prisma schema for the Vacation Roster Management System.
+// Provider is "sqlite" so the app runs out-of-the-box. To switch to MySQL,
+// change the provider to "mysql" and set DATABASE_URL to a MySQL connection
+// string. The schema is otherwise MySQL-compatible.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String      @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String      @unique
+  password        String
+  role            String      @default("EMPLOYEE") // ADMIN | EMPLOYEE
+  department      Department? @relation(fields: [departmentId], references: [id])
+  departmentId    String?
+  annualAllowance Int         @default(25)
+  carryOverDays   Int         @default(0)
+  active          Boolean     @default(true)
+  profileImage    String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  vacationRequests VacationRequest[] @relation("employeeRequests")
+  approvedRequests VacationRequest[] @relation("approverRequests")
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  users User[]
+
+  @@map("departments")
+}
+
+model VacationRequest {
+  id             String    @id @default(cuid())
+  employee       User      @relation("employeeRequests", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  startDate      DateTime
+  endDate        DateTime
+  workingDays    Int
+  reason         String?
+  status         String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  managerComment String?
+  approvedAt     DateTime?
+  approver       User?     @relation("approverRequests", fields: [approvedById], references: [id])
+  approvedById   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("vacation_requests")
+}
+
+model Company {
+  id              String    @id @default(cuid())
+  name            String
+  countryCode     String    @db.Char(2)
+  holidaySyncYear Int?
+  holidaySyncAt   DateTime?
+  holidays        Holiday[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("company")
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  name        String
+  date        DateTime
+  year        Int
+  countryCode String   @db.Char(2)
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@unique([date, countryCode])
+  @@map("holidays")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
